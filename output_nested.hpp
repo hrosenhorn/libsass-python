@@ -10,7 +10,7 @@
 
 namespace Sass {
   using namespace std;
-  class Context;
+  struct Context;
 
   class Output_Nested : public Operation_CRTP<void, Output_Nested> {
     // import all the class-specific methods and override as desired
@@ -81,9 +81,9 @@ namespace Sass {
     // virtual void operator()(Attribute_Selector*);
     // virtual void operator()(Pseudo_Selector*);
     // virtual void operator()(Negated_Selector*);
-    // virtual void operator()(Simple_Selector_Sequence*);
-    // virtual void operator()(Selector_Combination*);
-    // virtual void operator()(Selector_Group*);
+    // virtual void operator()(Compound_Selector*);
+    // virtual void operator()(Complex_Selector*);
+    // virtual void operator()(Selector_List*);
 
     template <typename U>
     void fallback(U x) { fallback_impl(x); }

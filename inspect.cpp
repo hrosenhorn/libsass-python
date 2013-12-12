@@ -209,15 +209,15 @@ namespace Sass {
   {
     string sep(list->separator() == List::SPACE ? " " : ", ");
     if (list->empty()) return;
-    Expression* first = (*list)[0];
-    bool first_invisible = first->is_invisible();
-    if (!first_invisible) first->perform(this);
-    for (size_t i = 1, L = list->length(); i < L; ++i) {
-      Expression* next = (*list)[i];
-      bool next_invisible = next->is_invisible();
-      if (i == 1 && !first_invisible && !next_invisible) buffer += sep;
-      else if (!next_invisible)                          buffer += sep;
-      next->perform(this);
+    bool items_output = false;
+    for (size_t i = 0, L = list->length(); i < L; ++i) {
+      Expression* list_item = (*list)[i];
+      if (list_item->is_invisible()) {
+        continue;
+      }
+      if (items_output) buffer += sep;
+      list_item->perform(this);
+      items_output = true;
     }
   }
 
@@ -332,7 +332,12 @@ namespace Sass {
     //   ss << ctx.colors_to_names[numval];
     // }
     // else
-    if (a >= 1) {
+
+    // retain the originally specified color definition if unchanged
+    if (!c->disp().empty()) {
+      ss << c->disp();
+    }
+    else if (a >= 1) {
       // see if it's a named color
       int numval = r * 0x10000;
       numval += g * 0x100;
@@ -412,10 +417,10 @@ namespace Sass {
     }
   }
 
-  // void Inspect::operator()(Null* n)
-  // {
-  //   buffer += "null";
-  // }
+  void Inspect::operator()(Null* n)
+  {
+     buffer += "null";
+  }
 
   // parameters and arguments
   void Inspect::operator()(Parameter* p)
@@ -448,6 +453,10 @@ namespace Sass {
     if (!a->name().empty()) {
       buffer += a->name();
       buffer += ": ";
+    }
+    // Special case: argument nulls can be ignored
+    if (a->value()->concrete_type() == Expression::NULL_VAL) {
+      return;
     }
     a->value()->perform(this);
     if (a->is_rest_argument()) {
@@ -522,33 +531,33 @@ namespace Sass {
     buffer += ')';
   }
 
-  void Inspect::operator()(Simple_Selector_Sequence* s)
+  void Inspect::operator()(Compound_Selector* s)
   {
     for (size_t i = 0, L = s->length(); i < L; ++i) {
       (*s)[i]->perform(this);
     }
   }
 
-  void Inspect::operator()(Selector_Combination* c)
+  void Inspect::operator()(Complex_Selector* c)
   {
-    Simple_Selector_Sequence*        head = c->head();
-    Selector_Combination*            tail = c->tail();
-    Selector_Combination::Combinator comb = c->combinator();
+    Compound_Selector*        head = c->head();
+    Complex_Selector*            tail = c->tail();
+    Complex_Selector::Combinator comb = c->combinator();
     if (head) head->perform(this);
     if (head && tail) buffer += ' ';
     switch (comb) {
-      case Selector_Combination::ANCESTOR_OF:                break;
-      case Selector_Combination::PARENT_OF:   buffer += '>'; break;
-      case Selector_Combination::PRECEDES:    buffer += '~'; break;
-      case Selector_Combination::ADJACENT_TO: buffer += '+'; break;
+      case Complex_Selector::ANCESTOR_OF:                break;
+      case Complex_Selector::PARENT_OF:   buffer += '>'; break;
+      case Complex_Selector::PRECEDES:    buffer += '~'; break;
+      case Complex_Selector::ADJACENT_TO: buffer += '+'; break;
     }
-    if (tail && comb != Selector_Combination::ANCESTOR_OF) {
+    if (tail && comb != Complex_Selector::ANCESTOR_OF) {
       buffer += ' ';
     }
     if (tail) tail->perform(this);
   }
 
-  void Inspect::operator()(Selector_Group* g)
+  void Inspect::operator()(Selector_List* g)
   {
     if (g->empty()) return;
     (*g)[0]->perform(this);

@@ -52,7 +52,29 @@ namespace Sass {
       ++indentation;
       for (size_t i = 0, L = b->length(); i < L; ++i) {
         Statement* stm = (*b)[i];
-        if (!stm->is_hoistable()) {
+        bool bPrintExpression = true;
+        // Check print conditions
+        if (typeid(*stm) == typeid(Declaration)) {
+          Declaration* dec = static_cast<Declaration*>(stm);
+          if (dec->value()->concrete_type() == Expression::STRING) {
+            String_Constant* valConst = static_cast<String_Constant*>(dec->value());
+            string val(valConst->value());
+            if (val.empty()) {
+              bPrintExpression = false;
+            }
+          }
+          else if (dec->value()->concrete_type() == Expression::LIST) {
+            List* list = static_cast<List*>(dec->value());
+            bool all_invisible = true;
+            for (size_t list_i = 0, list_L = list->length(); list_i < list_L; ++list_i) {
+              Expression* item = (*list)[list_i];
+              if (!item->is_invisible()) all_invisible = false;
+            }
+            if (all_invisible) bPrintExpression = false;
+          }
+        }
+        // Print if OK
+        if (!stm->is_hoistable() && bPrintExpression) {
           if (!stm->block()) indent();
           stm->perform(this);
           buffer += '\n';

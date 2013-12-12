@@ -5,6 +5,26 @@
 #include <vector>
 #include <algorithm>
 
+#ifdef __clang__
+
+/*
+ * There are some overloads used here that trigger the clang overload
+ * hiding warning. Specifically:
+ *
+ * Type type() which hides string type() from Expression
+ * 
+ * and
+ *
+ * Block* block() which hides virtual Block* block() from Statement
+ *
+ */
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Woverloaded-virtual"
+
+#endif
+
+
 #ifndef SASS_OPERATION
 #include "operation.hpp"
 #endif
@@ -94,7 +114,7 @@ namespace Sass {
     virtual ~Statement() = 0;
     // needed for rearranging nested rulesets during CSS emission
     virtual bool   is_hoistable() { return false; }
-    virtual Block* block()        { return 0; }
+    virtual Block* block()  { return 0; }
   };
   inline Statement::~Statement() { }
 
@@ -359,7 +379,7 @@ namespace Sass {
   // Definitions for both mixins and functions. The two cases are distinguished
   // by a type tag.
   /////////////////////////////////////////////////////////////////////////////
-  class Context;
+  struct Context;
   struct Backtrace;
   class Parameters;
   typedef Environment<AST_Node*> Env;
@@ -734,9 +754,10 @@ namespace Sass {
     ADD_PROPERTY(double, g);
     ADD_PROPERTY(double, b);
     ADD_PROPERTY(double, a);
+    ADD_PROPERTY(string, disp);
   public:
-    Color(string p, size_t l, double r, double g, double b, double a = 1)
-    : Expression(p, l), r_(r), g_(g), b_(b), a_(a)
+    Color(string p, size_t l, double r, double g, double b, double a = 1, const string disp = "")
+    : Expression(p, l), r_(r), g_(g), b_(b), a_(a), disp_(disp)
     { concrete_type(COLOR); }
     string type() { return "color"; }
     static string type_name() { return "color"; }
@@ -1002,7 +1023,6 @@ namespace Sass {
   /////////////////////////////////////////
   // Abstract base class for CSS selectors.
   /////////////////////////////////////////
-  class Simple_Selector_Sequence;
   class Selector : public AST_Node {
     ADD_PROPERTY(bool, has_reference);
     ADD_PROPERTY(bool, has_placeholder);
@@ -1132,7 +1152,7 @@ namespace Sass {
   // Simple selector sequences. Maintains flags indicating whether it contains
   // any parent references or placeholders, to simplify expansion.
   ////////////////////////////////////////////////////////////////////////////
-  class Simple_Selector_Sequence : public Selector, public Vectorized<Simple_Selector*> {
+  class Compound_Selector : public Selector, public Vectorized<Simple_Selector*> {
   protected:
     void adjust_after_pushing(Simple_Selector* s)
     {
@@ -1140,11 +1160,11 @@ namespace Sass {
       if (s->has_placeholder()) has_placeholder(true);
     }
   public:
-    Simple_Selector_Sequence(string p, size_t l, size_t s = 0)
+    Compound_Selector(string p, size_t l, size_t s = 0)
     : Selector(p, l),
       Vectorized<Simple_Selector*>(s)
     { }
-    bool operator<(const Simple_Selector_Sequence& rhs) const;
+    bool operator<(const Compound_Selector& rhs) const;
     virtual Selector_Placeholder* find_placeholder();
     ATTACH_OPERATIONS();
   };
@@ -1154,27 +1174,27 @@ namespace Sass {
   // CSS selector combinators (">", "+", "~", and whitespace). Essentially a
   // linked list.
   ////////////////////////////////////////////////////////////////////////////
-  class Context;
-  class Selector_Combination : public Selector {
+  struct Context;
+  class Complex_Selector : public Selector {
   public:
     enum Combinator { ANCESTOR_OF, PARENT_OF, PRECEDES, ADJACENT_TO };
   private:
     ADD_PROPERTY(Combinator, combinator);
-    ADD_PROPERTY(Simple_Selector_Sequence*, head);
-    ADD_PROPERTY(Selector_Combination*, tail);
+    ADD_PROPERTY(Compound_Selector*, head);
+    ADD_PROPERTY(Complex_Selector*, tail);
   public:
-    Selector_Combination(string p, size_t l,
+    Complex_Selector(string p, size_t l,
                          Combinator c,
-                         Simple_Selector_Sequence* h,
-                         Selector_Combination* t)
+                         Compound_Selector* h,
+                         Complex_Selector* t)
     : Selector(p, l), combinator_(c), head_(h), tail_(t)
     {
       if ((h && h->has_reference())   || (t && t->has_reference()))   has_reference(true);
       if ((h && h->has_placeholder()) || (t && t->has_placeholder())) has_placeholder(true);
     }
-    Simple_Selector_Sequence* base();
-    Selector_Combination* context(Context&);
-    Selector_Combination* innermost();
+    Compound_Selector* base();
+    Complex_Selector* context(Context&);
+    Complex_Selector* innermost();
     virtual Selector_Placeholder* find_placeholder();
     ATTACH_OPERATIONS();
   };
@@ -1182,19 +1202,25 @@ namespace Sass {
   ///////////////////////////////////
   // Comma-separated selector groups.
   ///////////////////////////////////
-  class Selector_Group
-      : public Selector, public Vectorized<Selector_Combination*> {
+  class Selector_List
+      : public Selector, public Vectorized<Complex_Selector*> {
   protected:
-    void adjust_after_pushing(Selector_Combination* c)
+    void adjust_after_pushing(Complex_Selector* c)
     {
       if (c->has_reference())   has_reference(true);
       if (c->has_placeholder()) has_placeholder(true);
     }
   public:
-    Selector_Group(string p, size_t l, size_t s = 0)
-    : Selector(p, l), Vectorized<Selector_Combination*>(s)
+    Selector_List(string p, size_t l, size_t s = 0)
+    : Selector(p, l), Vectorized<Complex_Selector*>(s)
     { }
     virtual Selector_Placeholder* find_placeholder();
     ATTACH_OPERATIONS();
   };
 }
+
+#ifdef __clang__
+
+#pragma clang diagnostic pop
+
+#endif

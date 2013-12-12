@@ -6,7 +6,7 @@
 namespace Sass {
   using namespace std;
 
-  Output_Compressed::Output_Compressed(Context* ctx) : buffer(""), ctx(ctx) { }
+  Output_Compressed::Output_Compressed(Context* ctx) : buffer("") { }
   Output_Compressed::~Output_Compressed() { }
 
   inline void Output_Compressed::fallback_impl(AST_Node* n)
@@ -128,11 +128,26 @@ namespace Sass {
 
   void Output_Compressed::operator()(Declaration* d)
   {
-    d->property()->perform(this);
-    buffer += ":";
-    d->value()->perform(this);
-    if (d->is_important()) buffer += "!important";
-    buffer += ';';
+    bool bPrintExpression = true;
+    // Check print conditions
+    if (d->value()->concrete_type() == Expression::NULL_VAL) {
+      bPrintExpression = false;
+    }
+    if (d->value()->concrete_type() == Expression::STRING) {
+      String_Constant* valConst = static_cast<String_Constant*>(d->value());
+      string val(valConst->value());
+      if (val.empty()) {
+        bPrintExpression = false;
+      }
+    }
+    // Print if OK
+    if(bPrintExpression) {
+      d->property()->perform(this);
+      buffer += ":";
+      d->value()->perform(this);
+      if (d->is_important()) buffer += "!important";
+      buffer += ';';
+    }
   }
 
   void Output_Compressed::operator()(Comment* c)
@@ -197,22 +212,22 @@ namespace Sass {
     buffer += ')';
   }
 
-  void Output_Compressed::operator()(Selector_Combination* c)
+  void Output_Compressed::operator()(Complex_Selector* c)
   {
-    Simple_Selector_Sequence*        head = c->head();
-    Selector_Combination*            tail = c->tail();
-    Selector_Combination::Combinator comb = c->combinator();
+    Compound_Selector*        head = c->head();
+    Complex_Selector*            tail = c->tail();
+    Complex_Selector::Combinator comb = c->combinator();
     if (head) head->perform(this);
     switch (comb) {
-      case Selector_Combination::ANCESTOR_OF: buffer += ' '; break;
-      case Selector_Combination::PARENT_OF:   buffer += '>'; break;
-      case Selector_Combination::PRECEDES:    buffer += '~'; break;
-      case Selector_Combination::ADJACENT_TO: buffer += '+'; break;
+      case Complex_Selector::ANCESTOR_OF: buffer += ' '; break;
+      case Complex_Selector::PARENT_OF:   buffer += '>'; break;
+      case Complex_Selector::PRECEDES:    buffer += '~'; break;
+      case Complex_Selector::ADJACENT_TO: buffer += '+'; break;
     }
     if (tail) tail->perform(this);
   }
 
-  void Output_Compressed::operator()(Selector_Group* g)
+  void Output_Compressed::operator()(Selector_List* g)
   {
     if (g->empty()) return;
     (*g)[0]->perform(this);

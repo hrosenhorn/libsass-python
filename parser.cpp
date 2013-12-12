@@ -333,23 +333,23 @@ namespace Sass {
     return new (ctx.mem) Selector_Schema(path, line, schema);
   }
 
-  Selector_Group* Parser::parse_selector_group()
+  Selector_List* Parser::parse_selector_group()
   {
     To_String to_string;
-    Selector_Group* group = new (ctx.mem) Selector_Group(path, line);
+    Selector_List* group = new (ctx.mem) Selector_List(path, line);
     do {
-      Selector_Combination* comb = parse_selector_combination();
+      Complex_Selector* comb = parse_selector_combination();
       if (!comb->has_reference()) {
         size_t sel_line = line;
         Selector_Reference* ref = new (ctx.mem) Selector_Reference(path, sel_line);
-        Simple_Selector_Sequence* ref_wrap = new (ctx.mem) Simple_Selector_Sequence(path, sel_line);
+        Compound_Selector* ref_wrap = new (ctx.mem) Compound_Selector(path, sel_line);
         (*ref_wrap) << ref;
         if (!comb->head()) {
           comb->head(ref_wrap);
           comb->has_reference(true);
         }
         else {
-          comb = new (ctx.mem) Selector_Combination(path, sel_line, Selector_Combination::ANCESTOR_OF, ref_wrap, comb);
+          comb = new (ctx.mem) Complex_Selector(path, sel_line, Complex_Selector::ANCESTOR_OF, ref_wrap, comb);
           comb->has_reference(true);
         }
       }
@@ -359,10 +359,10 @@ namespace Sass {
     return group;
   }
 
-  Selector_Combination* Parser::parse_selector_combination()
+  Complex_Selector* Parser::parse_selector_combination()
   {
     size_t sel_line = 0;
-    Simple_Selector_Sequence* lhs;
+    Compound_Selector* lhs;
     if (peek< exactly<'+'> >() ||
         peek< exactly<'~'> >() ||
         peek< exactly<'>'> >()) {
@@ -374,16 +374,17 @@ namespace Sass {
       sel_line = line;
     }
 
-    Selector_Combination::Combinator cmb;
-    if      (lex< exactly<'+'> >()) cmb = Selector_Combination::ADJACENT_TO;
-    else if (lex< exactly<'~'> >()) cmb = Selector_Combination::PRECEDES;
-    else if (lex< exactly<'>'> >()) cmb = Selector_Combination::PARENT_OF;
-    else                            cmb = Selector_Combination::ANCESTOR_OF;
+    Complex_Selector::Combinator cmb;
+    if      (lex< exactly<'+'> >()) cmb = Complex_Selector::ADJACENT_TO;
+    else if (lex< exactly<'~'> >()) cmb = Complex_Selector::PRECEDES;
+    else if (lex< exactly<'>'> >()) cmb = Complex_Selector::PARENT_OF;
+    else                            cmb = Complex_Selector::ANCESTOR_OF;
 
-    Selector_Combination* rhs;
+    Complex_Selector* rhs;
     if (peek< exactly<','> >() ||
         peek< exactly<')'> >() ||
         peek< exactly<'{'> >() ||
+        peek< exactly<'}'> >() ||
         peek< exactly<';'> >()) {
       // no selector after the combinator
       rhs = 0;
@@ -393,12 +394,12 @@ namespace Sass {
       sel_line = line;
     }
     if (!sel_line) sel_line = line;
-    return new (ctx.mem) Selector_Combination(path, sel_line, cmb, lhs, rhs);
+    return new (ctx.mem) Complex_Selector(path, sel_line, cmb, lhs, rhs);
   }
 
-  Simple_Selector_Sequence* Parser::parse_simple_selector_sequence()
+  Compound_Selector* Parser::parse_simple_selector_sequence()
   {
-    Simple_Selector_Sequence* seq = new (ctx.mem) Simple_Selector_Sequence(path, line);
+    Compound_Selector* seq = new (ctx.mem) Compound_Selector(path, line);
     // check for backref or type selector, which are only allowed at the front
     if (lex< exactly<'&'> >()) {
       (*seq) << new (ctx.mem) Selector_Reference(path, line);
@@ -417,6 +418,7 @@ namespace Sass {
              peek < exactly<','> >(position) ||
              peek < exactly<')'> >(position) ||
              peek < exactly<'{'> >(position) ||
+             peek < exactly<'}'> >(position) ||
              peek < exactly<';'> >(position))) {
       (*seq) << parse_simple_selector();
     }
@@ -856,9 +858,14 @@ namespace Sass {
       Expression* value = parse_comma_list();
       if (!lex< exactly<')'> >()) error("unclosed parenthesis");
       value->is_delayed(false);
+      // make sure wrapped lists and division expressions are non-delayed within parentheses
       if (value->concrete_type() == Expression::LIST) {
         List* l = static_cast<List*>(value);
         if (!l->empty()) (*l)[0]->is_delayed(false);
+      } else if (typeid(*value) == typeid(Binary_Expression)) {
+        Binary_Expression* b = static_cast<Binary_Expression*>(value);
+        Binary_Expression* lhs = static_cast<Binary_Expression*>(b->left());
+        if (lhs && lhs->type() == Binary_Expression::DIV) lhs->is_delayed(false);
       }
       return value;
     }
@@ -876,7 +883,7 @@ namespace Sass {
       *kwd_arg << new (ctx.mem) String_Constant(path, line, lexed);
       if (lex< variable >()) *kwd_arg << new (ctx.mem) Variable(path, line, lexed);
       else {
-        lex< alternatives< identifier_schema, identifier > >();
+        lex< alternatives< identifier_schema, identifier, number > >();
         *kwd_arg << new (ctx.mem) String_Constant(path, line, lexed);
       }
       return kwd_arg;

@@ -19,7 +19,7 @@ namespace Sass {
   class Block;
   class Expression;
   class Color;
-  class Backtrace;
+  struct Backtrace;
   // typedef const char* Signature;
   // struct Context;
   // typedef Environment<AST_Node*> Env;
@@ -28,7 +28,7 @@ namespace Sass {
   enum Output_Style { NESTED, EXPANDED, COMPACT, COMPRESSED, FORMATTED };
 
   struct Context {
-    Memory_Manager<AST_Node*> mem;
+    Memory_Manager<AST_Node> mem;
 
     const char* source_c_str;
     vector<const char*> sources; // c-strs containing Sass file contents
@@ -65,6 +65,11 @@ namespace Sass {
     string add_file(string, string);
     char* compile_string();
     char* compile_file();
+
+    std::vector<string> get_included_files();
+
+  private:
+    vector<string> included_files;
 
     // void register_built_in_functions(Env* env);
     // void register_function(Signature sig, Native_Function f, Env* env);
