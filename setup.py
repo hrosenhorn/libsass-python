@@ -48,7 +48,7 @@ if sys.platform == 'win32':
             spawn(cmd, dry_run=self.dry_run)
         from distutils.msvc9compiler import MSVCCompiler
         MSVCCompiler.spawn = spawn
-    flags = ['-I' + os.path.abspath('win32')]
+    flags = ['-I' + os.path.abspath('win32'), '/MT']
     link_flags = []
     macros = {'LIBSASS_PYTHON_VERSION': '\\"' + version + '\\"'}
 else:
