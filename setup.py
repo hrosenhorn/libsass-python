@@ -16,14 +16,15 @@ except ImportError:
     from setuptools import Extension, setup
 
 
-version = '0.3.0esn'
+version = '0.3.1esn'
 
 libsass_sources = [
     'ast.cpp', 'bind.cpp', 'constants.cpp', 'context.cpp', 'contextualize.cpp',
     'copy_c_str.cpp', 'error_handling.cpp', 'eval.cpp', 'expand.cpp',
     'extend.cpp', 'file.cpp', 'functions.cpp', 'inspect.cpp',
     'output_compressed.cpp', 'output_nested.cpp', 'parser.cpp', 'prelexer.cpp',
-    'sass.cpp', 'sass_interface.cpp', 'to_c.cpp', 'to_string.cpp', 'units.cpp'
+    'sass.cpp', 'sass_interface.cpp', 'to_c.cpp', 'to_string.cpp', 'units.cpp',
+    'source_map.cpp', 'base64vlq.cpp'
 ]
 
 libsass_headers = [

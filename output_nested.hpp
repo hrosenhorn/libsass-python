@@ -24,6 +24,8 @@ namespace Sass {
 
     void fallback_impl(AST_Node* n);
 
+    void append_to_buffer(const string& text);
+
   public:
 
     Output_Nested(bool source_comments = false, Context* ctx = 0);

@@ -30,4 +30,3 @@ namespace Sass {
     string fallback(U n) { return fallback_impl(n); }
   };
 }
-
